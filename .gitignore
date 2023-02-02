@@ -1,0 +1,7 @@
+node_modules/
+
+*.env
+
+# Hardhat compiler output
+artifacts
+cache
