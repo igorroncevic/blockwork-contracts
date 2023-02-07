@@ -20,6 +20,7 @@ contract Middleman {
         bool isOwner
     );
 
+    address private arbitrator;
     uint256 public balance;
 
     struct Agreement {
@@ -43,6 +44,10 @@ contract Middleman {
     }
 
     mapping(address => mapping(address => Dispute[])) public disputes; // owner -> (recipient -> []dispute)
+
+    constructor(address _arbitrator) {
+        arbitrator = _arbitrator;
+    }
 
     function lockFunds(string memory id, address _recipient, uint256 _amount) public payable {
         require(msg.value >= _amount, "Insufficient funds.");
@@ -98,12 +103,8 @@ contract Middleman {
         emit DisputeInitiated(_owner, _recipient, msg.sender, agreement.id, _index);
     }
 
-    function chooseArbitrator() public pure returns (address) {
-        // swap pure for view when logic is implemented
-        // In this function, you can implement the logic to select an arbitrator to resolve disputes.
-        // There are many different ways to select an arbitrator, and it depends on the requirements of your use case.
-        // You can choose a random address from a pre-approved list of arbitrators, or use a random number generator to select an arbitrator from a decentralized network of arbitrators.
-        return address(0); // Example return, replace with actual implementation
+    function chooseArbitrator() public view returns (address) {
+        return arbitrator; // TODO: Implement arbitrator logic
     }
 
     function resolveDispute(
