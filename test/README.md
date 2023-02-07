@@ -22,3 +22,10 @@ await expect(() =>
 - Returning values from non-view / pure functions is inaccessible outside of the chain (i.e. other smart contracts). Hence, to retrieve the return value, one must use events instead.
 https://ethereum.stackexchange.com/a/94873
 https://ethereum.stackexchange.com/questions/88119/i-see-no-way-to-obtain-the-return-value-of-a-non-view-function-ethers-js
+
+- If we expect transaction to revert, don't use await on tx2 as it won't return a response, since it will panic first
+but use it on expect as follows:
+```
+await expect(failingTx).to.be.reverted;
+```
+https://stackoverflow.com/a/72146474

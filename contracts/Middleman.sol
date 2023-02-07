@@ -3,11 +3,27 @@
 pragma solidity ^0.8.0;
 
 contract Middleman {
-    event FundsLocked(address indexed _owner, uint _index);
+    event FundsLocked(address indexed owner, address indexed recipient, string id, uint index);
+    event FundsReleased(address indexed owner, address indexed recipient, string id, uint index);
+    event DisputeInitiated(
+        address indexed owner,
+        address indexed recipient,
+        address initiatedBy,
+        string agreementId,
+        uint disputeIndex
+    );
+    event DisputeResolved(
+        address indexed owner,
+        address indexed recipient,
+        string agreementId,
+        uint disputeIndex,
+        bool isOwner
+    );
 
     uint256 public balance;
 
     struct Agreement {
+        string id;
         address owner;
         address recipient;
         uint256 amount;
@@ -15,9 +31,10 @@ contract Middleman {
         bool isDisputed;
     }
 
-    mapping(address => Agreement[]) public agreements; // owner -> []agrement
+    mapping(address => mapping(address => Agreement[])) public agreements; // owner -> (recipient -> []agrement)
 
     struct Dispute {
+        string agreementId;
         address owner;
         address recipient;
         address arbitrator;
@@ -25,13 +42,14 @@ contract Middleman {
         bool resolved;
     }
 
-    mapping(address => Dispute[]) public disputes; // owner -> []dispute
+    mapping(address => mapping(address => Dispute[])) public disputes; // owner -> (recipient -> []dispute)
 
-    function lockFunds(address _recipient, uint256 _amount) public payable {
+    function lockFunds(string memory id, address _recipient, uint256 _amount) public payable {
         require(msg.value >= _amount, "Insufficient funds.");
 
-        agreements[msg.sender].push(
+        agreements[msg.sender][_recipient].push(
             Agreement({
+                id: id,
                 owner: msg.sender,
                 recipient: _recipient,
                 amount: _amount,
@@ -41,47 +59,33 @@ contract Middleman {
         );
 
         balance += msg.value; // This just allows us to preview current balance, payable keyword is the one that allows sending ether to the smart contract
-        emit FundsLocked(msg.sender, agreements[msg.sender].length - 1);
+
+        emit FundsLocked(msg.sender, _recipient, id, agreements[msg.sender][_recipient].length - 1);
     }
 
-    // TODO: Correct this, as it will return only the first agreement between 2 parties.
-    function findAgreement(address _owner, address _recipient) private view returns (uint) {
-        uint index = 0;
-        bool found = false;
+    function releaseFunds(address _recipient, uint _index) public {
+        Agreement storage agreement = agreements[msg.sender][_recipient][_index];
 
-        for (uint i = 0; i < agreements[_owner].length; i++) {
-            if (agreements[_owner][i].recipient == _recipient) {
-                index = i;
-                found = true;
-                break;
-            }
-        }
-
-        require(found, "Agreement not found.");
-
-        return index;
-    }
-
-    function releaseFunds(address _recipient) public {
-        uint agreementIndex = findAgreement(msg.sender, _recipient);
-
-        Agreement storage agreement = agreements[msg.sender][uint(agreementIndex)];
+        require(agreement.owner == msg.sender, "Only the agreement owner can release funds.");
         require(!agreement.isDisputed, "This agreement is disputed.");
         require(!agreement.isCompleted, "This agreement has already been completed.");
-        require(agreement.owner == msg.sender, "Only the agreement owner can release funds.");
 
         agreement.isCompleted = true;
         payable(_recipient).transfer(agreement.amount);
+
+        emit FundsReleased(msg.sender, _recipient, agreement.id, _index);
     }
 
-    function initiateDispute(address _owner, address _recipient) public {
-        uint agreementIndex = findAgreement(_owner, _recipient);
-        Agreement storage agreement = agreements[_owner][agreementIndex];
+    function initiateDispute(address _owner, address _recipient, uint _index) public {
+        Agreement storage agreement = agreements[_owner][_recipient][_index];
+
+        // require(msg.sender == _owner || msg.sender == _recipient, "You can only initiate disputes for your own agreements.");
         require(!agreement.isDisputed, "This agreement is already disputed.");
         require(!agreement.isCompleted, "Cannot dispute a completed agreement.");
 
-        disputes[_owner].push(
+        disputes[_owner][_recipient].push(
             Dispute({
+                agreementId: agreement.id,
                 owner: _owner,
                 recipient: _recipient,
                 arbitrator: chooseArbitrator(),
@@ -90,6 +94,8 @@ contract Middleman {
             })
         );
         agreement.isDisputed = true;
+
+        emit DisputeInitiated(_owner, _recipient, msg.sender, agreement.id, _index);
     }
 
     function chooseArbitrator() public pure returns (address) {
@@ -100,8 +106,14 @@ contract Middleman {
         return address(0); // Example return, replace with actual implementation
     }
 
-    function resolveDispute(address _owner, uint _disputeIndex, bool _isOwner) public {
-        Dispute storage dispute = disputes[_owner][_disputeIndex];
+    function resolveDispute(
+        address _owner,
+        address _recipient,
+        uint _disputeIndex,
+        uint _agreementIndex,
+        bool _isOwner
+    ) public {
+        Dispute storage dispute = disputes[_owner][_recipient][_disputeIndex];
         require(
             dispute.arbitrator == msg.sender,
             "Only the assigned arbitrator can resolve this dispute."
@@ -109,36 +121,17 @@ contract Middleman {
         require(!dispute.resolved, "This dispute has already been resolved.");
 
         dispute.resolved = true;
-        Agreement storage agreement = agreements[dispute.owner][
-            findAgreement(dispute.owner, dispute.recipient)
-        ];
+
+        Agreement storage agreement = agreements[dispute.owner][dispute.recipient][_agreementIndex];
         agreement.isDisputed = false;
+        agreement.isCompleted = true;
 
         if (_isOwner) {
             payable(dispute.owner).transfer(dispute.amount);
         } else {
             payable(dispute.recipient).transfer(dispute.amount);
         }
-    }
 
-    // TODO: Test this helper function
-    function getAgreement(
-        address _owner,
-        address _recipient
-    ) private view returns (Agreement storage) {
-        uint index;
-        bool found = false;
-
-        for (uint i = 0; i < agreements[_owner].length; i++) {
-            if (agreements[_owner][i].recipient == _recipient) {
-                index = i;
-                found = true;
-                break;
-            }
-        }
-
-        require(found, "Agreement not found.");
-
-        return agreements[_owner][index];
+        emit DisputeResolved(_owner, _recipient, agreement.id, _disputeIndex, _isOwner);
     }
 }

@@ -1,18 +1,42 @@
-const fetchNewAgreement = async (middleman, tx) => {
+const crypto = require("crypto");
+
+const matchObjects = (obj, matcher) => {
+    const objLength = Object.keys(obj).length;
+    const matcherLength = Object.keys(matcher).length;
+
+    if (objLength >= matcherLength) {
+        return Object.keys(matcher).every(
+            (key) => Object.prototype.hasOwnProperty.call(obj, key) && matcher[key] === obj[key],
+        );
+    }
+
+    return false;
+};
+
+const fetchNewAgreement = async (middleman, tx, index, id, owner, recipient) => {
     const receipt = await tx.wait();
     let fundsLockedEvent;
 
     for (let i = 0; i < receipt.events.length; i++) {
         const event = receipt.events[i];
         if (event.event === "FundsLocked") {
-            fundsLockedEvent = { ...event.args };
+            const eventObj = { ...event.args };
+            if (matchObjects(eventObj, { id, owner, recipient })) {
+                fundsLockedEvent = { ...eventObj };
+            }
             break;
         }
     }
 
-    const agreement = await middleman.agreements(fundsLockedEvent["0"], fundsLockedEvent["1"]);
+    const agreement = await middleman.agreements(
+        fundsLockedEvent.owner,
+        fundsLockedEvent.recipient,
+        index,
+    );
 
     return { ...agreement };
 };
 
-module.exports = { fetchNewAgreement };
+const newUUID = () => crypto.randomUUID();
+
+module.exports = { fetchNewAgreement, newUUID };
