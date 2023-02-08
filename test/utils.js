@@ -13,7 +13,7 @@ const matchObjects = (obj, matcher) => {
     return false;
 };
 
-const fetchNewAgreement = async (middleman, tx, index, id, owner, recipient) => {
+const fetchNewAgreementViaEvent = async (middleman, tx, agreementId, owner, recipient) => {
     const receipt = await tx.wait();
     let fundsLockedEvent;
 
@@ -21,7 +21,8 @@ const fetchNewAgreement = async (middleman, tx, index, id, owner, recipient) => 
         const event = receipt.events[i];
         if (event.event === "FundsLocked") {
             const eventObj = { ...event.args };
-            if (matchObjects(eventObj, { id, owner, recipient })) {
+            // console.log(event.args);
+            if (matchObjects(eventObj, { agreementId, owner, recipient })) {
                 fundsLockedEvent = { ...eventObj };
                 break;
             }
@@ -35,13 +36,13 @@ const fetchNewAgreement = async (middleman, tx, index, id, owner, recipient) => 
     const agreement = await middleman.agreements(
         fundsLockedEvent.owner,
         fundsLockedEvent.recipient,
-        index,
+        fundsLockedEvent.agreementId,
     );
 
     return { ...agreement };
 };
 
-const fetchNewDispute = async (middleman, tx, index, agreementId, owner, recipient) => {
+const fetchNewDisputeViaEvent = async (middleman, tx, disputeId, owner, recipient) => {
     const receipt = await tx.wait();
     let disputeInitiatedEvent;
 
@@ -49,7 +50,7 @@ const fetchNewDispute = async (middleman, tx, index, agreementId, owner, recipie
         const event = receipt.events[i];
         if (event.event === "DisputeInitiated") {
             const eventObj = { ...event.args };
-            if (matchObjects(eventObj, { agreementId, owner, recipient })) {
+            if (matchObjects(eventObj, { disputeId, owner, recipient })) {
                 disputeInitiatedEvent = { ...eventObj };
                 break;
             }
@@ -63,12 +64,28 @@ const fetchNewDispute = async (middleman, tx, index, agreementId, owner, recipie
     const dispute = await middleman.disputes(
         disputeInitiatedEvent.owner,
         disputeInitiatedEvent.recipient,
-        index,
+        disputeInitiatedEvent.disputeId,
     );
 
     return { ...dispute };
 };
 
+const fetchNewAgreement = async (middleman, owner, recipient, agreementId) => {
+    const response = await middleman.agreements(owner, recipient, agreementId);
+    return { id: agreementId, owner, recipient, ...response };
+};
+
+const fetchNewDispute = async (middleman, owner, recipient, disputeId) => {
+    const response = await middleman.disputes(owner, recipient, disputeId);
+    return { id: disputeId, owner, recipient, ...response };
+};
+
 const newUUID = () => crypto.randomUUID();
 
-module.exports = { fetchNewAgreement, fetchNewDispute, newUUID };
+module.exports = {
+    fetchNewAgreement,
+    fetchNewAgreementViaEvent,
+    fetchNewDispute,
+    fetchNewDisputeViaEvent,
+    newUUID,
+};
