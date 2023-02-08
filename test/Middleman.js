@@ -72,9 +72,8 @@ describe("Middleman Contract", () => {
 
             // not using await on tx2 as it won't return a response, since it will panic first
             // panic code 0x32 (Array accessed at an out-of-bounds or negative index)
-            await expect(
-                middleman.connect(recipient).releaseFunds(recipient.address, agreementId),
-            ).to.be.reverted;
+            await expect(middleman.connect(recipient).releaseFunds(recipient.address, agreementId))
+                .to.be.reverted;
         });
 
         it("should revert because the agreement is still disputed", async () => {
@@ -204,12 +203,8 @@ describe("Middleman Contract", () => {
 
         describe("Initiate Dispute", () => {
             it("should revert because the agreement is already disputed", async () => {
-                const {
-                    middleman,
-                    owner,
-                    recipient,
-                    agreement,
-                } = await createAgreementAndInitiateDispute();
+                const { middleman, owner, recipient, agreement } =
+                    await createAgreementAndInitiateDispute();
 
                 await expect(
                     middleman
@@ -247,12 +242,7 @@ describe("Middleman Contract", () => {
                 await expect(
                     middleman
                         .connect(owner)
-                        .initiateDispute(
-                            owner.address,
-                            recipient.address,
-                            agreementId,
-                            newUUID(),
-                        ),
+                        .initiateDispute(owner.address, recipient.address, agreementId, newUUID()),
                 ).to.be.revertedWith("Cannot dispute a completed agreement.");
             });
 
@@ -261,13 +251,8 @@ describe("Middleman Contract", () => {
 
         describe("Resolve Dispute", () => {
             it("should revert because non-arbitrators cannot resolve disputes", async () => {
-                const {
-                    middleman,
-                    owner,
-                    recipient,
-                    agreement,
-                    dispute,
-                } = await createAgreementAndInitiateDispute();
+                const { middleman, owner, recipient, agreement, dispute } =
+                    await createAgreementAndInitiateDispute();
 
                 await expect(
                     middleman
@@ -283,14 +268,8 @@ describe("Middleman Contract", () => {
             });
 
             it("should revert because dispute has already been resolved", async () => {
-                const {
-                    middleman,
-                    owner,
-                    recipient,
-                    arbitrator,
-                    agreement,
-                    dispute,
-                } = await createAgreementAndInitiateDispute();
+                const { middleman, owner, recipient, arbitrator, agreement, dispute } =
+                    await createAgreementAndInitiateDispute();
 
                 await expect(
                     middleman
@@ -327,15 +306,8 @@ describe("Middleman Contract", () => {
             });
 
             it("should resolve a dispute", async () => {
-                const {
-                    middleman,
-                    owner,
-                    recipient,
-                    arbitrator,
-                    amount,
-                    agreement,
-                    dispute,
-                } = await createAgreementAndInitiateDispute();
+                const { middleman, owner, recipient, arbitrator, amount, agreement, dispute } =
+                    await createAgreementAndInitiateDispute();
 
                 const tx = await middleman
                     .connect(arbitrator)
