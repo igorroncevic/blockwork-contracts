@@ -19,36 +19,6 @@ describe("Middleman Contract", () => {
     };
 
     describe("Lock Funds", () => {
-        it("should lock funds", async () => {
-            const { middleman, owner, recipient, amount } = await loadFixture(
-                deployMiddlemanFixture,
-            );
-
-            const id = newUUID();
-
-            const tx = await middleman
-                .connect(owner)
-                .lockFunds(id, recipient.address, amount, { value: amount });
-
-            expect(tx).to.changeEtherBalances([owner, middleman], [-amount, amount]);
-
-            const agreement = await fetchNewAgreement(
-                middleman,
-                tx,
-                0,
-                id,
-                owner.address,
-                recipient.address,
-            );
-
-            expect(agreement.id).to.equal(id);
-            expect(agreement.owner).to.equal(owner.address);
-            expect(agreement.recipient).to.equal(recipient.address);
-            expect(agreement.amount).to.equal(amount);
-            expect(agreement.isCompleted).to.equal(false);
-            expect(agreement.isDisputed).to.equal(false);
-        });
-
         it("should revert due to insufficient funds", async () => {
             const { middleman, owner, recipient, amount } = await loadFixture(
                 deployMiddlemanFixture,
@@ -59,6 +29,35 @@ describe("Middleman Contract", () => {
                 middleman.connect(owner).lockFunds(newUUID(), recipient.address, amount),
             ).to.be.revertedWith("Insufficient funds.");
         });
+
+        it("should lock funds", async () => {
+            const { middleman, owner, recipient, amount } = await loadFixture(
+                deployMiddlemanFixture,
+            );
+
+            const agreementId = newUUID();
+
+            const tx = await middleman
+                .connect(owner)
+                .lockFunds(agreementId, recipient.address, amount, { value: amount });
+
+            expect(tx).to.changeEtherBalances([owner, middleman], [-amount, amount]);
+
+            const agreement = await fetchNewAgreement(
+                middleman,
+                tx,
+                agreementId,
+                owner.address,
+                recipient.address,
+            );
+
+            expect(agreement.id).to.equal(agreementId);
+            expect(agreement.owner).to.equal(owner.address);
+            expect(agreement.recipient).to.equal(recipient.address);
+            expect(agreement.amount).to.equal(amount);
+            expect(agreement.isCompleted).to.equal(false);
+            expect(agreement.isDisputed).to.equal(false);
+        });
     });
 
     describe("Release Funds", () => {
@@ -67,15 +66,17 @@ describe("Middleman Contract", () => {
                 deployMiddlemanFixture,
             );
 
+            const agreementId = newUUID();
+
             const tx1 = await middleman
                 .connect(owner)
-                .lockFunds(newUUID(), recipient.address, amount, { value: amount });
+                .lockFunds(agreementId, recipient.address, amount, { value: amount });
             expect(tx1).to.changeEtherBalances([owner, middleman], [-amount, amount]);
 
             // not using await on tx2 as it won't return a response, since it will panic first
             // panic code 0x32 (Array accessed at an out-of-bounds or negative index)
             await expect(
-                middleman.connect(recipient).releaseFunds(recipient.address, 0),
+                middleman.connect(recipient).releaseFunds(recipient.address, agreementId),
             ).to.be.reverted;
         });
 
@@ -84,17 +85,19 @@ describe("Middleman Contract", () => {
                 deployMiddlemanFixture,
             );
 
+            const agreementId = newUUID();
+
             const tx1 = await middleman
                 .connect(owner)
                 .lockFunds(newUUID(), recipient.address, amount, { value: amount });
             expect(tx1).to.changeEtherBalances([owner, middleman], [-amount, amount]);
 
             await expect(
-                middleman.initiateDispute(owner.address, recipient.address, 0),
+                middleman.initiateDispute(owner.address, recipient.address, agreementId, newUUID()),
             ).to.not.be.reverted;
 
             await expect(
-                middleman.connect(owner).releaseFunds(recipient.address, 0),
+                middleman.connect(owner).releaseFunds(recipient.address, agreementId),
             ).to.be.revertedWith("This agreement is disputed.");
         });
 
@@ -103,21 +106,20 @@ describe("Middleman Contract", () => {
                 deployMiddlemanFixture,
             );
 
-            const id = newUUID();
+            const agreementId = newUUID();
 
             const tx1 = await middleman
                 .connect(owner)
-                .lockFunds(id, recipient.address, amount, { value: amount });
+                .lockFunds(agreementId, recipient.address, amount, { value: amount });
             expect(tx1).to.changeEtherBalances([owner, middleman], [-amount, amount]);
 
-            const tx2 = await middleman.connect(owner).releaseFunds(recipient.address, 0);
+            const tx2 = await middleman.connect(owner).releaseFunds(recipient.address, agreementId);
             expect(tx2).to.changeEtherBalances([middleman, recipient], [-amount, amount]);
 
             const agreement = await fetchNewAgreement(
                 middleman,
                 tx1,
-                0,
-                id,
+                agreementId,
                 owner.address,
                 recipient.address,
             );
@@ -134,22 +136,21 @@ describe("Middleman Contract", () => {
                 deployMiddlemanFixture,
             );
 
-            const id = newUUID();
+            const agreementId = newUUID();
 
             const tx1 = await middleman
                 .connect(owner)
-                .lockFunds(id, recipient.address, amount, { value: amount });
+                .lockFunds(agreementId, recipient.address, amount, { value: amount });
 
             expect(tx1).to.changeEtherBalances([owner, middleman], [-amount, amount]);
 
-            const tx2 = await middleman.connect(owner).releaseFunds(recipient.address, 0);
+            const tx2 = await middleman.connect(owner).releaseFunds(recipient.address, agreementId);
             expect(tx2).to.changeEtherBalances([middleman, recipient], [-amount, amount]);
 
             const agreement = await fetchNewAgreement(
                 middleman,
                 tx1,
-                0,
-                id,
+                agreementId,
                 owner.address,
                 recipient.address,
             );
@@ -165,6 +166,7 @@ describe("Middleman Contract", () => {
             );
 
             const agreementId = newUUID();
+            const disputeId = newUUID();
 
             const tx1 = await middleman
                 .connect(owner)
@@ -173,12 +175,11 @@ describe("Middleman Contract", () => {
 
             const tx2 = await middleman
                 .connect(owner)
-                .initiateDispute(owner.address, recipient.address, 0);
+                .initiateDispute(owner.address, recipient.address, agreementId, disputeId);
 
             const agreement = await fetchNewAgreement(
                 middleman,
                 tx1,
-                0,
                 agreementId,
                 owner.address,
                 recipient.address,
@@ -186,8 +187,7 @@ describe("Middleman Contract", () => {
             const dispute = await fetchNewDispute(
                 middleman,
                 tx2,
-                0,
-                agreementId,
+                disputeId,
                 owner.address,
                 recipient.address,
             );
@@ -211,10 +211,17 @@ describe("Middleman Contract", () => {
 
         describe("Initiate Dispute", () => {
             it("should revert because the agreement is already disputed", async () => {
-                const { middleman, owner, recipient } = await createAgreementAndInitiateDispute();
+                const {
+                    middleman,
+                    owner,
+                    recipient,
+                    agreement,
+                } = await createAgreementAndInitiateDispute();
 
                 await expect(
-                    middleman.connect(owner).initiateDispute(owner.address, recipient.address, 0),
+                    middleman
+                        .connect(owner)
+                        .initiateDispute(owner.address, recipient.address, agreement.id),
                 ).to.be.revertedWith("This agreement is already disputed.");
             });
 
@@ -230,13 +237,14 @@ describe("Middleman Contract", () => {
                     .lockFunds(agreementId, recipient.address, amount, { value: amount });
                 expect(tx1).to.changeEtherBalances([owner, middleman], [-amount, amount]);
 
-                const tx2 = await middleman.connect(owner).releaseFunds(recipient.address, 0);
+                const tx2 = await middleman
+                    .connect(owner)
+                    .releaseFunds(recipient.address, agreementId);
                 expect(tx2).to.changeEtherBalances([middleman, recipient], [-amount, amount]);
 
                 const agreement = await fetchNewAgreement(
                     middleman,
                     tx1,
-                    0,
                     agreementId,
                     owner.address,
                     recipient.address,
@@ -245,7 +253,14 @@ describe("Middleman Contract", () => {
                 expect(agreement.isCompleted).to.equal(true);
 
                 await expect(
-                    middleman.connect(owner).initiateDispute(owner.address, recipient.address, 0),
+                    middleman
+                        .connect(owner)
+                        .initiateDispute(
+                            owner.address,
+                            recipient.address,
+                            agreementId,
+                            newUUID(),
+                        ),
                 ).to.be.revertedWith("Cannot dispute a completed agreement.");
             });
 
@@ -258,12 +273,20 @@ describe("Middleman Contract", () => {
                     middleman,
                     owner,
                     recipient,
+                    agreement,
+                    dispute,
                 } = await createAgreementAndInitiateDispute();
 
                 await expect(
                     middleman
                         .connect(owner)
-                        .resolveDispute(owner.address, recipient.address, 0, 0, true),
+                        .resolveDispute(
+                            owner.address,
+                            recipient.address,
+                            dispute.id,
+                            agreement.id,
+                            true,
+                        ),
                 ).to.be.revertedWith("Only the assigned arbitrator can resolve this dispute.");
             });
 
@@ -274,30 +297,42 @@ describe("Middleman Contract", () => {
                     recipient,
                     arbitrator,
                     agreement,
+                    dispute,
                     disputeTx,
                 } = await createAgreementAndInitiateDispute();
 
                 await expect(
                     middleman
                         .connect(arbitrator)
-                        .resolveDispute(owner.address, recipient.address, 0, 0, true),
+                        .resolveDispute(
+                            owner.address,
+                            recipient.address,
+                            dispute.id,
+                            agreement.id,
+                            true,
+                        ),
                 ).to.not.be.reverted;
 
-                const dispute = await fetchNewDispute(
+                const newDispute = await fetchNewDispute(
                     middleman,
                     disputeTx,
-                    0,
-                    agreement.id,
+                    dispute.id,
                     owner.address,
                     recipient.address,
                 );
 
-                expect(dispute.resolved).to.equal(true);
+                expect(newDispute.resolved).to.equal(true);
 
                 await expect(
                     middleman
                         .connect(arbitrator)
-                        .resolveDispute(owner.address, recipient.address, 0, 0, true),
+                        .resolveDispute(
+                            owner.address,
+                            recipient.address,
+                            dispute.id,
+                            agreement.id,
+                            true,
+                        ),
                 ).to.be.revertedWith("This dispute has already been resolved.");
             });
 
@@ -310,19 +345,25 @@ describe("Middleman Contract", () => {
                     amount,
                     agreement,
                     agreementTx,
+                    dispute,
                     disputeTx,
                 } = await createAgreementAndInitiateDispute();
 
                 const tx = await middleman
                     .connect(arbitrator)
-                    .resolveDispute(owner.address, recipient.address, 0, 0, true);
+                    .resolveDispute(
+                        owner.address,
+                        recipient.address,
+                        dispute.id,
+                        agreement.id,
+                        true,
+                    );
                 // isOwner = true --> ether back to owner
                 expect(tx).to.changeEtherBalances([middleman, owner], [-amount, amount]);
 
                 const newAgreement = await fetchNewAgreement(
                     middleman,
                     agreementTx,
-                    0,
                     agreement.id,
                     owner.address,
                     recipient.address,
@@ -330,15 +371,14 @@ describe("Middleman Contract", () => {
                 expect(newAgreement.isDisputed).to.equal(false);
                 expect(newAgreement.isCompleted).to.equal(true);
 
-                const dispute = await fetchNewDispute(
+                const newDispute = await fetchNewDispute(
                     middleman,
                     disputeTx,
-                    0,
-                    agreement.id,
+                    dispute.id,
                     owner.address,
                     recipient.address,
                 );
-                expect(dispute.resolved).to.equal(true);
+                expect(newDispute.resolved).to.equal(true);
             });
         });
     });
